@@ -1,0 +1,6 @@
+streamlit
+pandas
+plotly
+nba_api
+scikit-learn
+torch
