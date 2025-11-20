@@ -1,51 +1,55 @@
-# Moneyball 2.0: Quantifying the Evolution of NBA Playstyles
+# NBA Synergy Engine (Moneyball 2.0)
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)]([https://nba-meta-evolution-v1-11-25.streamlit.app/])
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://nba-synergy-engine.streamlit.app/)
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-red)
+![SQL](https://img.shields.io/badge/Database-SQLite-orange)
 
-**An unsupervised machine learning project that uses Player Tracking Data (Speed, Distance, Micro-Touches) to identify the 10 "True Archetypes" of the modern NBA and forecast their market value through 2030.**
+**A Permutation-Invariant Neural Network (DeepSet) that predicts lineup chemistry and optimizes roster construction using 11 years of player tracking data.**
 
 ---
 
-## The Problem
-Traditional NBA positions (PG, SG, SF, PF, C) are obsolete. Calling LeBron James a "Small Forward" or Nikola Jokić a "Center" fails to capture their actual role on the court.
+## Project Overview
+Traditional NBA analytics evaluate players in isolation (e.g., PER, Win Shares). However, basketball is a chemical reaction—a high-usage scorer might pair poorly with another ball-dominant guard but perfectly with a low-usage rim runner.
 
-While box scores tell us *what* happened (Points, Rebounds), they don't tell us *how* it happened. This project abandons box scores in favor of **Player Tracking Data**—analyzing how players move, how long they hold the ball, and where they operate—to scientifically classify the league's talent.
+**The NBA Synergy Engine** solves the "Fit Problem" by:
+1.  **Classifying Playstyles:** Using Unsupervised Learning (GMM) on tracking data to identify 10 modern archetypes.
+2.  **Predicting Synergy:** Using a **DeepSet Neural Network** to predict the Net Rating of any 5-man unit based on the vector sum of their playstyles.
+3.  **Generative Optimization:** An AI "General Manager" that mathematically solves for the optimal 5th starter to maximize a specific team's chemistry.
 
-## Key Findings
-Using **Gaussian Mixture Models (GMM)** on data from 2014–2025, this project identified 10 distinct playstyles.
+## Technical Architecture
 
-* **The "King" Archetype:** The **Heliocentric Creator** (e.g., Luka Dončić, Shai Gilgeous-Alexander) is the most valuable and fastest-growing asset in the NBA, with a projected value growth of **54%** by 2030.
-* **The Decline of the "Point God":** The **Traditional Facilitator** (e.g., Chris Paul, Tyus Jones)—players with low offensive speed and high touch time but low scoring—is statistically flatlining in value.
-* **The LeBron Effect:** The model successfully detected LeBron James's tactical shift from "Heliocentric Star" (2018) to "Traditional Facilitator" (2020 Lakers PG year) to "Versatile Big" (2024).
+### 1. Data Engineering (ETL & SQL)
+* **Source:** NBA API (Player Tracking Data + Lineup Performance).
+* **Pipeline:** Ingested **170,000+ possessions** across 11 seasons (2014–2025).
+* **Storage:** Migrated raw CSV data into a relational **SQLite Database**, designing normalized schemas for Players, Lineups, and Archetypes to enable O(1) query performance during inference.
 
-## Technical Methodology
+### 2. Unsupervised Learning (The "Meta")
+* **Model:** Gaussian Mixture Models (GMM) with PCA dimensionality reduction.
+* **Input:** 12 tracking metrics (Speed, Micro-Touches, Dribbles per Touch).
+* **Outcome:** Identified 10 Latent Archetypes, mathematically validating concepts like the "Heliocentric Creator" (Cluster 6) and predicting the extinction of the "Traditional Facilitator" (Cluster 1).
 
-### 1. Data Pipeline (ETL)
-* **Source:** NBA API (`nba_api`)
-* **Scope:** 11 Seasons (2014–2025), 4,700+ Player-Seasons.
-* **Features:** Engineered advanced metrics from raw tracking data:
-    * *Offensive Motor:* Average Movement Speed (MPH)
-    * *Ball Dominance:* Average Seconds Per Touch & Dribbles Per Touch
-    * *Shot Diet:* Pull-Up vs. Catch & Shoot Ratios
+### 3. Deep Learning (The "Brain")
+* **Architecture:** Custom **Permutation-Invariant DeepSet** (built in PyTorch).
+* **Problem Solved:** Traditional Neural Networks treat inputs sequentially (Player 1 != Player 2). A DeepSet architecture uses a shared Encoder and a Sum-Pooling layer to ensure that {Luka, Kyrie} is treated identically to {Kyrie, Luka}.
+* **Performance:** Trained on 3,500+ qualified lineups to predict Net Rating with **39.94 RMSE**.
 
-### 2. Machine Learning Model
-* **Dimensionality Reduction:** Applied **Principal Component Analysis (PCA)** to reduce 12 tracking metrics into core components (explaining 95% of variance).
-* **Clustering:** Utilized **Gaussian Mixture Models (GMM)** rather than K-Means.
-    * *Why GMM?* NBA players are hybrids. GMM provides "soft clustering" (probabilities), allowing us to see that a player might be **60% Rim Runner** and **40% Versatile Big**.
+## The "Generative GM" Module
+A vectorized optimization engine that:
+1.  Takes a 4-man Core (e.g., SGA, Jalen Williams, Chet Holmgren, Dort).
+2.  Scans the entire NBA roster (450+ players).
+3.  Performs **Batch Inference** via PyTorch to simulate 450 hypothetical lineups instantly.
+4.  Returns the mathematically optimal 5th player.
+    * *Real-World Validation:* The model correctly identified that the OKC Thunder (a ball-dominant core) maximize their Net Rating by adding a **Cluster 2 Rim Runner** (e.g., Clint Capela), rejecting other high-usage stars.
 
-### 3. Forecasting
-* **Metric:** Defined a synthetic "Impact Score" based on efficiency per touch and offensive motor.
-* **Regression:** Trained Linear Regression models on the historical performance of each cluster to forecast the "Meta" of the NBA through 2030.
-
-## The 10 Identified Archetypes
-
-| ID | Label | Description | Examples |
-| :--- | :--- | :--- | :--- |
-| **6** | **Heliocentric Stars** | High Dribbles, High Time/Touch, Elite Scoring | *Luka Dončić, SGA* |
-| **0** | **Movement Snipers** | High Off-Speed, High Catch & Shoot % | *Klay Thompson, Isaiah Joe* |
-| **5** | **Versatile Bigs** | Paint Touches + Playmaking/DHO Hubs | *Nikola Jokić, Draymond Green* |
-| **8** | **Dominant Bigs** | Pure Paint Scoring, Low Speed | *Giannis, Embiid* |
-| **2** | **Rim Runners** | High Def-Speed, Zero Dribbles | *Clint Capela, Jarrett Allen* |
-| **1** | **Traditional Facilitators** | High Touch Time, Low Scoring Efficiency | *Chris Paul, Tre Jones* |
-
-*(See App for full list)*
+## Project Structure
+```text
+├── app.py                     # Streamlit Web Application (Frontend)
+├── nba_sql.db                 # SQLite Database (Local Storage)
+├── requirements.txt           # Cloud Dependencies
+├── v1_boxscore_project/       # Legacy: Static analysis & Evolution Charts
+├── v2_tracking_project/       # Machine Learning: GMM Clustering Scripts
+├── v3_neural_synergy/         # Deep Learning: PyTorch Training & Generative Logic
+│   ├── synergy_model.pth      # Trained Neural Network Weights
+│   └── 02_train_deepset.py    # DeepSet Architecture Definition
+└── v4_data_engineering/       # Engineering: SQL Migration & ETL Pipelines
