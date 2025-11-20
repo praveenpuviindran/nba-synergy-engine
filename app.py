@@ -17,22 +17,30 @@ class NBADeepSet(nn.Module):
     def __init__(self, input_dim):
         super().__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(input_dim, 32),
+            nn.Linear(input_dim, 64),
             nn.ReLU(),
-            nn.Linear(32, 16),
+            nn.Linear(64, 32),
             nn.ReLU()
         )
         self.decoder = nn.Sequential(
-            nn.Linear(16, 16),
+            nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(16, 1)
+            nn.Dropout(0.2),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1)
         )
         
     def forward(self, x):
         # x shape: (Batch, 5, 9)
         player_embeddings = self.encoder(x)
-        team_embedding = torch.sum(player_embeddings, dim=1)
-        net_rating = self.decoder(team_embedding)
+        
+        # Updated Pooling Logic
+        team_sum = torch.sum(player_embeddings, dim=1)
+        team_std = torch.std(player_embeddings, dim=1)
+        team_vector = torch.cat([team_sum, team_std], dim=1)
+        
+        net_rating = self.decoder(team_vector)
         return net_rating
 
 # --- LOAD DATA ---
