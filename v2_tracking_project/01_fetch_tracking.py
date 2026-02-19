@@ -12,6 +12,7 @@ SEASONS = [
 
 OUTPUT_FOLDER = 'data'
 OUTPUT_FILE = 'tracking_data_2014_2025.csv'
+REQUEST_SLEEP_SECONDS = 0.6
 
 MEASURE_TYPES = ['Possessions', 'SpeedDistance', 'Defense', 'Efficiency']
 # Pulling fixed measure types keeps the merged schema stable year to year.
@@ -62,7 +63,7 @@ for season in SEASONS:
             else:
                 season_merged = pd.merge(season_merged, df_subset, on='PLAYER_ID', how='left')
             
-            time.sleep(0.6) 
+            time.sleep(REQUEST_SLEEP_SECONDS)
         
         if season_merged is not None:
             season_merged['SEASON_LABEL'] = season
