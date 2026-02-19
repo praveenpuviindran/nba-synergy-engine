@@ -28,11 +28,11 @@ class NBADeepSet(nn.Module):
 # This is O(1) memory usage vs O(N) loading huge CSVs.
 conn = sqlite3.connect(DB_PATH)
 
-query = f"""
-SELECT * FROM players 
-WHERE SEASON_LABEL = '{TARGET_SEASON}'
+query = """
+SELECT * FROM players
+WHERE SEASON_LABEL = ?
 """
-df = pd.read_sql(query, conn)
+df = pd.read_sql(query, conn, params=[TARGET_SEASON])
 conn.close()
 
 print(f"Loaded {len(df)} players from SQL Database for season {TARGET_SEASON}")
