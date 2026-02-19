@@ -7,7 +7,7 @@ A data-science project that models NBA lineup fit using player tracking data. Th
 - **Approach:** Learn player archetypes, then predict five‑man lineup performance with a permutation‑invariant neural network.
 - **Outcome:** A “Generative GM” module ranks the best and worst fifth‑player fits for any core lineup.
 
-## What This Project Does (Plain English)
+## What This Project Does
 1. Groups players into playstyle archetypes using tracking metrics.
 2. Learns how combinations of playstyles translate to lineup Net Rating.
 3. Tests every possible fifth player to recommend the best fit for a chosen core.
