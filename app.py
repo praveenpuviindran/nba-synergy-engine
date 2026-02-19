@@ -199,6 +199,9 @@ elif view_mode == "Generative GM (V3)":
         st.warning("Please select exactly 4 players to run the simulation.")
     else:
         if st.button(f"Run Synergy Engine ({len(candidate_pool)} Candidates)"):
+            if len(candidate_pool) == 0:
+                st.warning("No candidates matched the selected filter for this core.")
+                st.stop()
             
             # 1. Prepare Core Vectors
             core_vectors = [name_to_vec[p] for p in core]
