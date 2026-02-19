@@ -18,6 +18,7 @@ SEASONS = get_season_list(2010, 2024)
 
 OUTPUT_FOLDER = 'data'
 OUTPUT_FILE = 'nba_game_logs_2010_2025.csv' # Renamed file to reflect new range
+REQUEST_SLEEP_SECONDS = 1
 
 print("--- STARTING 15-YEAR DATA INGESTION ---")
 print(f"Target Seasons: {SEASONS}")
@@ -34,7 +35,7 @@ for season in SEASONS:
         log['SEASON_LABEL'] = season
         all_season_logs.append(log)
         print(f"   > Success: {len(log)} rows.")
-        time.sleep(1) 
+        time.sleep(REQUEST_SLEEP_SECONDS)
     except Exception as e:
         print(f"   > ERROR fetching {season}: {e}")
 
