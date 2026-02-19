@@ -9,8 +9,9 @@ A data-science project that models NBA lineup fit using player tracking data. Th
 
 ## What This Project Does
 1. Groups players into playstyle archetypes using tracking metrics.
-2. Learns how combinations of playstyles translate to lineup Net Rating.
-3. Tests every possible fifth player to recommend the best fit for a chosen core.
+2. Tracks league-wide market trends for archetype value over time.
+3. Learns how combinations of playstyles translate to lineup Net Rating.
+4. Tests every possible fifth player to recommend the best fit for a chosen core.
 
 ## Data
 - **Seasons:** 2014–2025
