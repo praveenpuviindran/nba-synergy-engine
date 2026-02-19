@@ -53,3 +53,4 @@ Link: https://nba-synergy-engine.streamlit.app/
 
 ## Notes
 - The Generative GM uses the same variance‑aware DeepSet architecture as training, so the recommended fifth player changes meaningfully with the selected core.
+- This repository is organized as a layered workflow: evolution analysis, market trends, and lineup optimization.

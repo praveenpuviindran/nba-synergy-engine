@@ -47,6 +47,7 @@ class NBADeepSet(nn.Module):
 df = pd.read_csv(PLAYER_DATA)
 feature_cols = ['OFF_SPEED', 'DEF_SPEED', 'TIME_PER_TOUCH', 'DRIBBLES_PER_TOUCH', 
                 'PTS_PER_TOUCH', 'DRIVE_PCT', 'CATCH_SHOOT_PCT', 'PULL_UP_PCT', 'PAINT_TOUCH_PCT']
+# These feature columns are shared with training and app inference.
 
 # Scale Features (Consistency is key)
 scaler = StandardScaler()

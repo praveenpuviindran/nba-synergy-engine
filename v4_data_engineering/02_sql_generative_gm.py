@@ -10,6 +10,7 @@ DB_PATH = 'nba_sql.db'
 MODEL_PATH = 'v3_neural_synergy/synergy_model.pth'
 CORE_LINEUP = ["Shai Gilgeous-Alexander", "Jalen Williams", "Chet Holmgren", "Luguentz Dort"]
 TARGET_SEASON = '2024-25'
+# Querying one season keeps inference memory bounded in SQL mode.
 
 print(f"--- SQL-POWERED GM: Optimizing for {CORE_LINEUP} ---")
 

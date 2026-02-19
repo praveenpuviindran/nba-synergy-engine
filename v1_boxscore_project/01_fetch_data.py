@@ -14,6 +14,7 @@ def get_season_list(start_year, end_year):
 
 # Generate 2010-11 to 2024-25
 SEASONS = get_season_list(2010, 2024) 
+# Deterministic season generation keeps re-runs reproducible.
 
 OUTPUT_FOLDER = 'data'
 OUTPUT_FILE = 'nba_game_logs_2010_2025.csv' # Renamed file to reflect new range

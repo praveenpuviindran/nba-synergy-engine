@@ -14,6 +14,7 @@ OUTPUT_FOLDER = 'data'
 OUTPUT_FILE = 'tracking_data_2014_2025.csv'
 
 MEASURE_TYPES = ['Possessions', 'SpeedDistance', 'Defense', 'Efficiency']
+# Pulling fixed measure types keeps the merged schema stable year to year.
 
 print("--- STARTING TRACKING DATA INGESTION (FIXED) ---")
 

@@ -2,3 +2,4 @@ __pycache__/
 .DS_STORE
 .venv/
 *.db
+# Keep local caches, virtual envs, and generated DB files out of version control.

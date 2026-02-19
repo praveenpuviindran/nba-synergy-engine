@@ -92,6 +92,7 @@ df['Archetype Label'] = df['ARCHETYPE_ID'].map(archetype_map)
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("Analysis Controls")
+# The app intentionally exposes three layers: V1 (history), V2 (macro trends), V3 (optimization).
 view_mode = st.sidebar.radio("Choose Module:", ["Player Evolution (V1)", "Market Trends (V2)", "Generative GM (V3)"])
 
 # ==========================================
