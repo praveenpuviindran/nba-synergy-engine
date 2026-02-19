@@ -99,7 +99,8 @@ predictions = []
 print(f"Scanning {len(name_to_vec)} candidates...")
 
 with torch.no_grad():
-    for candidate_name, candidate_vec in name_to_vec.items():
+    for candidate_name in sorted(name_to_vec):
+        candidate_vec = name_to_vec[candidate_name]
         # Skip if candidate is already in the lineup
         if candidate_name in CORE_LINEUP:
             continue
