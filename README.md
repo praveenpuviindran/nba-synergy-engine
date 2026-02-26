@@ -1,5 +1,7 @@
 # NBA Synergy Engine
 
+Live app: https://nba-synergy-engine.streamlit.app/
+
 This project builds a **Generative GM**: a system that takes any 4-player lineup core and recommends the best possible 5th player based on historical evidence.
 
 The main goal is not “who is the best player overall,” but:
