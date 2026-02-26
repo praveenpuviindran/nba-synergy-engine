@@ -48,20 +48,66 @@ def load_synergy_engine():
 df = load_archetype_data()
 model, artifacts = load_synergy_engine()
 
-# --- ARCHETYPE MAPPING ---
-archetype_map = {
-    6: "Heliocentric Stars",
-    0: "Movement Snipers",
-    7: "Scoring Wings",
-    5: "Versatile Bigs",
-    8: "Dominant Bigs",
-    3: "Defensive Wings",
-    2: "Rim Runners",
-    4: "Raw Athletic Bigs",
-    9: "Veteran Guards",
-    1: "Traditional Facilitators",
-}
-df['Archetype Label'] = df['ARCHETYPE_ID'].map(archetype_map)
+
+def infer_archetype_map(archetype_df: pd.DataFrame, season='2024-25'):
+    """
+    Cluster IDs from GMM are arbitrary; infer human-readable labels from centroid behavior.
+    This prevents stale hardcoded ID->name mappings (e.g., guards labeled as bigs).
+    """
+    feature_cols = [
+        'OFF_SPEED',
+        'DEF_SPEED',
+        'TIME_PER_TOUCH',
+        'DRIBBLES_PER_TOUCH',
+        'PTS_PER_TOUCH',
+        'DRIVE_PCT',
+        'CATCH_SHOOT_PCT',
+        'PULL_UP_PCT',
+        'PAINT_TOUCH_PCT',
+    ]
+
+    source = archetype_df[archetype_df['SEASON_LABEL'] == season].copy()
+    if source.empty:
+        source = archetype_df.copy()
+
+    centroids = source.groupby('ARCHETYPE_ID')[feature_cols].mean()
+    raw_map = {}
+
+    for archetype_id, row in centroids.iterrows():
+        if row['PAINT_TOUCH_PCT'] >= 0.75:
+            label = 'Dominant Bigs'
+        elif row['PAINT_TOUCH_PCT'] >= 0.52:
+            label = 'Interior Bigs'
+        elif row['TIME_PER_TOUCH'] >= 4.2 and row['PULL_UP_PCT'] >= 0.30:
+            label = 'Heliocentric Creators'
+        elif row['TIME_PER_TOUCH'] >= 3.8 and row['DRIBBLES_PER_TOUCH'] >= 3.3:
+            label = 'Lead Guards'
+        elif row['CATCH_SHOOT_PCT'] >= 0.52 and row['DRIBBLES_PER_TOUCH'] <= 1.6:
+            label = 'Movement Shooters'
+        elif row['DRIVE_PCT'] >= 0.28 and row['DRIBBLES_PER_TOUCH'] >= 1.8:
+            label = 'Slashing Guards/Wings'
+        elif row['CATCH_SHOOT_PCT'] >= 0.42 and row['DEF_SPEED'] >= 4.05:
+            label = '3-and-D Wings'
+        elif row['PAINT_TOUCH_PCT'] >= 0.28:
+            label = 'Rim Pressure Bigs'
+        else:
+            label = 'Two-Way Forwards'
+
+        raw_map[int(archetype_id)] = label
+
+    # Keep labels unique for chart legends if multiple clusters share the same style bucket.
+    label_counts = {}
+    archetype_map = {}
+    for archetype_id, label in sorted(raw_map.items()):
+        label_counts[label] = label_counts.get(label, 0) + 1
+        count = label_counts[label]
+        archetype_map[archetype_id] = label if count == 1 else f'{label} ({count})'
+
+    return archetype_map
+
+
+archetype_map = infer_archetype_map(df, season='2024-25')
+df['Archetype Label'] = df['ARCHETYPE_ID'].map(archetype_map).fillna('Unlabeled Archetype')
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("Analysis Controls")
@@ -187,13 +233,17 @@ elif view_mode == "Generative GM (V3)":
     candidate_pool = [p for p in available_players if p not in core]
 
     current_archetypes = current.set_index('PLAYER_NAME')['ARCHETYPE_ID'].to_dict()
+    current_labels = {name: archetype_map.get(arch_id, 'Unlabeled Archetype') for name, arch_id in current_archetypes.items()}
 
     if filter_type == "Ball Handler":
-        candidate_pool = [p for p in candidate_pool if current_archetypes.get(p) in [6, 1, 9]]
+        keywords = ('Creator', 'Guard', 'Facilitator')
+        candidate_pool = [p for p in candidate_pool if any(k in current_labels.get(p, '') for k in keywords)]
     elif filter_type == "Wing/Shooter":
-        candidate_pool = [p for p in candidate_pool if current_archetypes.get(p) in [0, 7, 3]]
+        keywords = ('Wing', 'Shooter', 'Forward')
+        candidate_pool = [p for p in candidate_pool if any(k in current_labels.get(p, '') for k in keywords)]
     elif filter_type == "Big Man":
-        candidate_pool = [p for p in candidate_pool if current_archetypes.get(p) in [8, 5, 2, 4]]
+        keywords = ('Big', 'Rim')
+        candidate_pool = [p for p in candidate_pool if any(k in current_labels.get(p, '') for k in keywords)]
 
     if len(core) < 4:
         st.warning("Please select exactly 4 players to run the simulation.")
