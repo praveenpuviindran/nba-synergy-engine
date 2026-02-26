@@ -1,57 +1,273 @@
 # NBA Synergy Engine
 
-A data-science project that models NBA lineup fit using player tracking data. The goal is simple: given a core of four players, identify which fifth player maximizes lineup chemistry.
+This project builds a **Generative GM**: a system that takes any 4-player lineup core and recommends the best possible 5th player based on historical evidence.
 
-## Summary
-- **Problem:** Player evaluation is usually individual; lineup success depends on interaction effects.
-- **Approach:** Learn player archetypes, then predict five‑man lineup performance with a permutation‑invariant neural network.
-- **Outcome:** A “Generative GM” module ranks the best and worst fifth‑player fits for any core lineup.
+The main goal is not “who is the best player overall,” but:
 
-## What This Project Does
-1. Groups players into playstyle archetypes using tracking metrics.
-2. Tracks league-wide market trends for archetype value over time.
-3. Learns how combinations of playstyles translate to lineup Net Rating.
-4. Tests every possible fifth player to recommend the best fit for a chosen core.
+**"Who is the best fit for these specific 4 teammates?"**
 
-## Data
-- **Seasons:** 2014–2025
-- **Sources:** NBA tracking data and lineup performance data
-- **Scale:** 170,000+ possessions and thousands of qualified lineups
-- **Storage:** Normalized SQLite database for fast queries
+---
 
-## Methods
-### 1) Archetype Discovery and Market Trends
-- **Model:** Gaussian Mixture Model (GMM) with PCA
-- **Goal:** Discover playstyle clusters (e.g., heliocentric creators, movement shooters, rim runners)
-- **Goal:** Analyze the market trends to identify future archetype potentials
+## What This README Explains
 
+This guide is written for readers with no basketball, data science, or machine learning background.
 
-### 2) Generative GM
-- **Input:** Any four‑player core
-- **Process:** Batch inference across the player pool to simulate all possible fifth‑player combinations
-- **Output:** Ranked best and worst fits for that core
+It explains:
+1. What problem the Generative GM solves.
+2. Every step used to build it.
+3. Why it can produce different answers for different 4-player cores.
+4. Which files in this repo implement each piece.
 
-## Results
-- **Model objective:** Predict lineup Net Rating from tracking features
-- **Reported performance:** ~39.94 RMSE on held‑out lineups (as measured during training)
+---
+
+## Plain-English Problem Statement
+
+In basketball, teams put 5 players on the court at once.
+
+A common mistake is to rank players only by individual talent. In practice, team performance depends heavily on **fit**:
+- Some players overlap too much (same strengths, same weaknesses).
+- Some players complement each other (one creates shots, another finishes, another defends, etc.).
+
+The Generative GM solves this:
+- Input: 4 existing players.
+- Output: ranked list of possible 5th players, from best fit to worst fit.
+
+---
+
+## Mini Glossary (No Prior Knowledge Needed)
+
+- **Lineup**: 5 players on the court together.
+- **Core**: the fixed 4 players you choose.
+- **Candidate**: the possible 5th player being tested.
+- **Feature**: a numeric description of player style (speed, touches, shot profile, etc.).
+- **Archetype**: a broad player style category (for example, shooter, rim runner, creator).
+- **Model**: a program that learns patterns from past data and predicts outcomes.
+- **Synergy score**: this project’s final fit score; higher means better expected lineup fit.
+
+---
+
+## End-to-End Build: How Generative GM Was Created
+
+### Step 1) Gather historical lineup outcomes
+Source file: `v3_neural_synergy/data/lineups_2014_2025.csv`
+
+For each historical 5-player lineup, we have performance outcomes including:
+- Minutes played together (`MIN`)
+- Score margin (`PLUS_MINUS`)
+- Season label
+
+This gives the system real examples of what lineup combinations succeeded or failed.
+
+### Step 2) Gather player playstyle data
+Source files:
+- `data/processed_tracking_metrics.csv`
+- `data/gmm_archetypes.csv`
+
+Each player-season gets behavior/style measurements (movement speed, touch patterns, shot type mix, etc.) and an archetype label.
+
+### Step 3) Standardize and clean player features
+Implementation: `v3_neural_synergy/synergy_utils.py` (`build_player_feature_table`)
+
+The pipeline:
+- Converts values to numeric format.
+- Handles missing values safely.
+- Scales features so different units are comparable.
+- Adds archetype one-hot columns.
+- Adds archetype confidence.
+
+Why this matters: the model can only learn well if features are consistent and comparable.
+
+### Step 4) Convert each 5-player lineup into training examples
+Implementation: `v3_neural_synergy/02_train_deepset.py`
+
+From each real lineup of 5 players, the script creates **5 separate examples**:
+- Keep 4 players as context (core).
+- Treat the remaining player as the candidate.
+
+This teaches the model exactly the decision we care about at inference time: **“given 4, how good is this 5th?”**
+
+### Step 5) Engineer context-aware interaction features
+Implementation: `v3_neural_synergy/synergy_utils.py` (`featurize_core_candidate`)
+
+For each (core, candidate) pair, features include:
+- Candidate vector itself.
+- Core summary statistics (mean/std/min/max).
+- Candidate minus core differences.
+- Absolute differences.
+- Element-wise interactions.
+- Similarity metrics (cosine and distance stats).
+
+Why this matters: this is the main mechanism that makes predictions change with the selected 4-player core.
+
+### Step 6) Use a better target than raw total plus-minus
+Implementation: `v3_neural_synergy/02_train_deepset.py`
+
+Raw `PLUS_MINUS` totals are biased by minutes and context. The training target is improved in two ways:
+
+1. **Rate normalization**:
+- Convert to per-48-minute impact: `PLUS_MINUS / MIN * 48`
+
+2. **Core-baseline demeaning**:
+- Estimate each 4-player core’s baseline strength from train data.
+- Train model on marginal lift above/below that baseline.
+
+Why this matters: it shifts learning from “best players overall” to “best incremental fit for this core.”
+
+### Step 7) Weight samples by lineup stability
+Implementation: `v3_neural_synergy/02_train_deepset.py`
+
+Lineups with more shared minutes are usually more reliable. The trainer uses minute-based weights (square-root scaled) so noisy tiny samples matter less.
+
+### Step 8) Train a neural interaction model
+Implementation: `v3_neural_synergy/synergy_utils.py` (`ContextAwareSynergyNet`) + `v3_neural_synergy/02_train_deepset.py`
+
+The neural network learns nonlinear interactions between:
+- Candidate profile,
+- Core profile,
+- Compatibility gaps.
+
+Training details include:
+- Train/validation/test split.
+- Robust loss (SmoothL1).
+- Regularization (dropout + weight decay).
+- Early stopping.
+
+### Step 9) Train a nearest-neighbor model (KNN)
+Implementation: `v3_neural_synergy/02_train_deepset.py`
+
+A KNN regressor is also trained on the same engineered feature space.
+
+Why include this:
+- It provides a local, example-based statistical check.
+- If a new query looks like known historical patterns, KNN can reinforce stability.
+
+### Step 10) Add a player quality prior and calibrate final score
+Implementation: `v3_neural_synergy/02_train_deepset.py`
+
+A season-specific player quality prior is derived from historical lineup impact and z-scored.
+
+Final score is calibrated as:
+- weighted model prediction
+- plus weighted quality prior
+- plus bias term
+
+Why this matters:
+- Fit-only systems can over-reward obscure role players.
+- This correction balances **fit** and **quality**.
+
+### Step 11) Save all artifacts required for consistent inference
+Outputs:
+- `v3_neural_synergy/synergy_model.pth` (neural weights)
+- `v3_neural_synergy/synergy_artifacts.pkl` (scalers, KNN, calibration coefficients, metadata)
+
+Why this matters: training and inference use identical preprocessing, avoiding train/inference mismatch.
+
+### Step 12) Run inference for a user-selected 4-player core
+Implementations:
+- Streamlit UI: `app.py`
+- CLI script: `v3_neural_synergy/03_generative_gm.py`
+- SQL-powered variant: `v4_data_engineering/02_sql_generative_gm.py`
+
+Inference flow:
+1. Load model + artifacts.
+2. Build vectors for all eligible candidates.
+3. Compute context-aware features for each candidate with your chosen 4 players.
+4. Score all candidates in one batch.
+5. Rank candidates and show best/worst fits.
+
+### Step 13) Confidence estimation
+Implementation: `app.py`, `v3_neural_synergy/03_generative_gm.py`
+
+A relative confidence score is computed from KNN neighbor distance.
+- Closer to known historical patterns => higher confidence.
+- Farther from known patterns => lower confidence.
+
+Important: this is a **relative reliability indicator**, not a guaranteed probability.
+
+---
+
+## Why This System Produces Different Results for Different Cores
+
+The key factors are:
+1. Core-conditioned feature engineering (candidate is always evaluated against the chosen 4 players).
+2. Marginal target (learns improvement over core baseline, not raw absolute team strength).
+3. Interaction-aware neural network (captures nonlinear fit effects).
+4. Quality calibration (prevents unrealistic fit-only rankings).
+5. Shared training/inference pipeline (same transforms at both stages).
+
+Together, these address the common failure mode where every core gets the same generic top players.
+
+---
+
+## File-by-File Map (Generative GM)
+
+- `v3_neural_synergy/synergy_utils.py`
+  - Shared model class, preprocessing, feature engineering.
+- `v3_neural_synergy/02_train_deepset.py`
+  - Full training pipeline and artifact export.
+- `v3_neural_synergy/03_generative_gm.py`
+  - Command-line inference for a selected core.
+- `app.py`
+  - Streamlit app interface for interactive lineup optimization.
+- `v4_data_engineering/02_sql_generative_gm.py`
+  - SQL-backed inference path.
+- `v3_neural_synergy/synergy_model.pth`
+  - Trained neural network weights.
+- `v3_neural_synergy/synergy_artifacts.pkl`
+  - Non-neural artifacts required to reproduce inference behavior.
+
+---
 
 ## How To Run
-### Streamlit App
-Link: https://nba-synergy-engine.streamlit.app/
 
-## Project Structure
-```text
-├── app.py                     # Streamlit web app
-├── nba_sql.db                 # SQLite database
-├── requirements.txt           # Python dependencies
-├── v1_boxscore_project/       # Legacy analysis
-├── v2_tracking_project/       # GMM clustering scripts
-├── v3_neural_synergy/         # Deep learning + Generative GM
-│   ├── synergy_model.pth      # Trained model weights
-│   └── 02_train_deepset.py    # DeepSet training script
-└── v4_data_engineering/       # ETL and database build
+### 1) Train / retrain the Generative GM
+```bash
+.venv/bin/python v3_neural_synergy/02_train_deepset.py
 ```
 
-## Notes
-- The Generative GM uses the same variance‑aware DeepSet architecture as training, so the recommended fifth player changes meaningfully with the selected core.
-- This repository is organized as a layered workflow: evolution analysis, market trends, and lineup optimization.
+### 2) Run command-line recommendations
+```bash
+.venv/bin/python v3_neural_synergy/03_generative_gm.py
+```
+
+### 3) Run SQL-powered recommendation path
+```bash
+.venv/bin/python v4_data_engineering/02_sql_generative_gm.py
+```
+
+### 4) Launch web app
+```bash
+.venv/bin/streamlit run app.py
+```
+
+---
+
+## Current Scope and Limitations
+
+- Uses historical lineup and tracking data from 2014–2025.
+- Learns from available lineup combinations; truly novel combinations can have lower confidence.
+- Synergy score is a model-based estimate, not a guarantee of real-game results.
+- Results depend on data quality and season coverage.
+
+---
+
+## Project Structure
+
+```text
+├── app.py
+├── nba_sql.db
+├── requirements.txt
+├── v1_boxscore_project/
+├── v2_tracking_project/
+├── v3_neural_synergy/
+│   ├── data/
+│   ├── 01_fetch_lineups.py
+│   ├── 02_train_deepset.py
+│   ├── 03_generative_gm.py
+│   ├── synergy_utils.py
+│   ├── synergy_model.pth
+│   └── synergy_artifacts.pkl
+└── v4_data_engineering/
+    ├── 01_build_sql_db.py
+    └── 02_sql_generative_gm.py
+```
