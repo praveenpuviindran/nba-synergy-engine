@@ -12,6 +12,7 @@ from v3_neural_synergy.synergy_utils import (
     attach_player_quality_column,
     build_player_feature_table,
     featurize_core_candidate,
+    predict_with_uncertainty,
 )
 
 # --- CONFIGURATION ---
@@ -271,24 +272,34 @@ elif view_mode == "Generative GM (V3)":
             X = np.array(batch_input, dtype=np.float32)
             X_scaled = artifacts['input_scaler'].transform(X).astype(np.float32)
 
-            with torch.no_grad():
-                nn_scores = model(torch.from_numpy(X_scaled)).squeeze(1).numpy()
+            with st.spinner("Running uncertainty-aware inference…"):
+                nn_mean, nn_std = predict_with_uncertainty(model, X_scaled, n_samples=50)
 
             knn_scores = artifacts['knn_model'].predict(X_scaled)
             alpha = float(artifacts['blend_alpha'])
-            base_scores = alpha * nn_scores + (1.0 - alpha) * knn_scores
+            base_scores = alpha * nn_mean + (1.0 - alpha) * knn_scores
             quality_arr = np.array([name_to_quality.get(c, 0.0) for c in valid_candidates], dtype=np.float32)
             coef = np.array(artifacts.get('score_calibration_coef', [1.0, 0.0, 0.0]), dtype=np.float32)
             final_scores = (coef[0] * base_scores) + (coef[1] * quality_arr) + coef[2]
+            score_std = coef[0] * nn_std  # propagate NN uncertainty through calibration scalar
 
             k_for_conf = min(10, int(getattr(artifacts['knn_model'], 'n_neighbors', 10)))
             dists, _ = artifacts['knn_model'].kneighbors(X_scaled, n_neighbors=k_for_conf)
             confidence = 1.0 / (1.0 + dists.mean(axis=1))
 
+            def _confidence_tier(std: float) -> str:
+                if std < 0.02:
+                    return "High"
+                if std < 0.05:
+                    return "Med"
+                return "Low"
+
             results_df = pd.DataFrame(
                 {
                     "Player": valid_candidates,
                     "Synergy Score": final_scores,
+                    "Score Std (σ)": score_std,
+                    "Uncertainty": [_confidence_tier(s) for s in score_std],
                     "Model Confidence": confidence,
                 }
             ).sort_values(by="Synergy Score", ascending=False)
@@ -303,11 +314,11 @@ elif view_mode == "Generative GM (V3)":
                 st.success(f"Best Fits ({filter_type})")
                 st.dataframe(
                     results_df.head(5)[
-                        ['Player', 'Synergy Score', 'Model Confidence', 'Archetype Label']
+                        ['Player', 'Synergy Score', 'Score Std (σ)', 'Uncertainty', 'Archetype Label']
                     ].style.format(
                         {
                             "Synergy Score": "{:.2f}",
-                            "Model Confidence": "{:.3f}",
+                            "Score Std (σ)": "{:.4f}",
                         }
                     )
                 )
@@ -316,11 +327,11 @@ elif view_mode == "Generative GM (V3)":
                 st.error("Chemistry Killers")
                 st.dataframe(
                     results_df.tail(5)[
-                        ['Player', 'Synergy Score', 'Model Confidence', 'Archetype Label']
+                        ['Player', 'Synergy Score', 'Score Std (σ)', 'Uncertainty', 'Archetype Label']
                     ].style.format(
                         {
                             "Synergy Score": "{:.2f}",
-                            "Model Confidence": "{:.3f}",
+                            "Score Std (σ)": "{:.4f}",
                         }
                     )
                 )
@@ -328,5 +339,20 @@ elif view_mode == "Generative GM (V3)":
             st.info(
                 "Synergy Score is a context-conditioned marginal fit metric (higher is better). "
                 "It blends a neural interaction model with KNN similarity correction so results change materially "
-                "with the selected 4-player core."
+                "with the selected 4-player core.  "
+                "**Score Std (σ)** reflects Monte Carlo Dropout uncertainty across 50 stochastic passes — "
+                "lower σ means higher model confidence in that score."
             )
+
+            with st.expander("Uncertainty Calibration Plot"):
+                calib_df = results_df[['Player', 'Synergy Score', 'Score Std (σ)', 'Uncertainty']].copy()
+                fig_calib = px.scatter(
+                    calib_df,
+                    x='Synergy Score',
+                    y='Score Std (σ)',
+                    color='Uncertainty',
+                    hover_data=['Player'],
+                    title='Score vs Uncertainty (σ) across all candidates',
+                    color_discrete_map={'High': '#22c55e', 'Med': '#f59e0b', 'Low': '#ef4444'},
+                )
+                st.plotly_chart(fig_calib, use_container_width=True)

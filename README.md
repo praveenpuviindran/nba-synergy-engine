@@ -273,7 +273,82 @@ Together, these address the common failure mode where every core gets the same g
 │   ├── synergy_utils.py
 │   ├── synergy_model.pth
 │   └── synergy_artifacts.pkl
+├── api/
+│   ├── main.py
+│   ├── database.py
+│   ├── run.py
+│   └── models/schemas.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_feature_pipeline.py
+│   ├── test_model.py
+│   ├── test_simulation.py
+│   └── test_api.py
+├── .github/workflows/ci.yml
+├── Dockerfile
+├── MODEL_CARD.md
+├── requirements-dev.txt
 └── v4_data_engineering/
     ├── 01_build_sql_db.py
     └── 02_sql_generative_gm.py
 ```
+
+---
+
+## REST API
+
+A FastAPI layer exposes the synergy engine as a REST API.
+
+### Start the server
+```bash
+pip install -r requirements-dev.txt
+python -m api.run
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness probe |
+| `POST` | `/lineup/optimize` | Score all candidates against a 4-player core |
+| `GET` | `/archetypes` | List GMM archetype labels for a given season |
+| `GET` | `/sql/lineup-stats` | Advanced SQL analytics — top lineups by plus-minus with per-minute efficiency and rank |
+
+### Example: optimize a lineup
+```bash
+curl -X POST http://localhost:8000/lineup/optimize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "core_players": ["Shai Gilgeous-Alexander", "Jalen Williams", "Chet Holmgren", "Luguentz Dort"],
+    "top_n": 5
+  }'
+```
+
+### Database
+Set `DATABASE_URL` to a PostgreSQL connection string for production.  The API
+falls back to the bundled `nba_sql.db` (SQLite) when `DATABASE_URL` is not set.
+
+---
+
+## Uncertainty Quantification
+
+The Generative GM uses **Monte Carlo Dropout** to report a confidence interval
+alongside every synergy score.
+
+### How it works
+1. At inference time, Dropout layers are kept active (training mode).
+2. 50 independent forward passes are run per candidate.
+3. The **mean** of the 50 passes is the displayed score; the **standard deviation (σ)** is the uncertainty.
+
+### Confidence tiers
+
+| σ | Badge | Interpretation |
+|---|---|---|
+| < 0.02 | **High** | Well within training distribution |
+| 0.02 – 0.05 | **Med** | Moderate uncertainty |
+| ≥ 0.05 | **Low** | Potentially out-of-distribution |
+
+The Streamlit app shows `Score (±σ)` for every candidate and includes an
+expandable **Uncertainty Calibration Plot** (score vs σ, coloured by tier).
+
+See [MODEL_CARD.md](MODEL_CARD.md) for full architecture and evaluation details.

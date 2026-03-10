@@ -151,6 +151,46 @@ def featurize_core_candidate(core_vectors: np.ndarray, candidate_vector: np.ndar
     ).astype(np.float32)
 
 
+def predict_with_uncertainty(
+    model: "ContextAwareSynergyNet",
+    features: np.ndarray,
+    n_samples: int = 50,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run Monte Carlo Dropout inference and return (mean_scores, std_scores).
+
+    Activates Dropout modules at inference time so each forward pass produces a
+    slightly different prediction.  Running n_samples passes yields a
+    distribution over scores whose standard deviation quantifies model
+    uncertainty.
+
+    Args:
+        model:     Trained ContextAwareSynergyNet (must be on CPU or consistent device).
+        features:  Float32 array of shape (n_candidates, input_dim) — already
+                   scaled by input_scaler.
+        n_samples: Number of stochastic forward passes.  50 balances accuracy
+                   and latency.
+
+    Returns:
+        mean_scores: shape (n_candidates,)
+        std_scores:  shape (n_candidates,)
+    """
+    # Keep BatchNorm / LayerNorm in eval mode; only Dropout in train mode.
+    model.eval()
+    for module in model.modules():
+        if isinstance(module, nn.Dropout):
+            module.train()
+
+    x = torch.from_numpy(features.astype(np.float32))
+    samples = []
+    with torch.no_grad():
+        for _ in range(n_samples):
+            out = model(x).squeeze(1).numpy()
+            samples.append(out)
+
+    stacked = np.stack(samples, axis=0)  # (n_samples, n_candidates)
+    return stacked.mean(axis=0), stacked.std(axis=0)
+
+
 def build_player_vector_dict(player_df: pd.DataFrame, player_feature_cols):
     vectors = {}
     for _, row in player_df.iterrows():
