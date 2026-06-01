@@ -1,6 +1,44 @@
+# Python
 __pycache__/
-.DS_STORE
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
 .venv/
-*.db
+venv/
+env/
+
+# Pytest / coverage
 .pytest_cache/
-# Keep local caches, virtual envs, and generated DB files out of version control.
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+
+# Database and model artifacts
+*.db
+*.pth
+*.pkl
+
+# OS artifacts
+.DS_Store
+.DS_STORE
+Thumbs.db
+desktop.ini
+
+# Environment files
+.env
+.env.*
+!.env.example

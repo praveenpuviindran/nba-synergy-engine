@@ -218,6 +218,10 @@ global_train_mean = float(y_net48[train_idx].mean())
 
 
 def shrunk_core_baseline(key):
+    """Return the Empirical-Bayes shrunk mean net-48 for a (season, core_ids) key.
+
+    Unseen cores fall back to the global training mean.
+    """
     cnt = core_count.get(key, 0)
     if cnt == 0:
         return global_train_mean
@@ -226,6 +230,7 @@ def shrunk_core_baseline(key):
 
 
 def make_delta_targets(idxs):
+    """Compute marginal-fit targets by subtracting each core's shrunk baseline from raw net-48."""
     baselines = np.array([shrunk_core_baseline(core_keys[i]) for i in idxs], dtype=np.float32)
     return y_net48[idxs] - baselines
 

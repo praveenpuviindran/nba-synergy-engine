@@ -38,14 +38,17 @@ class ContextAwareSynergyNet(nn.Module):
         )
 
     def forward(self, x):
+        """Run a forward pass through the MLP and return a (batch, 1) score tensor."""
         return self.net(x)
 
 
 def parse_group_ids(group_id: str):
+    """Parse a hyphen- or space-delimited GROUP_ID string into a list of integer player IDs."""
     return [int(pid) for pid in str(group_id).replace('-', ' ').split() if pid.strip()]
 
 
 def season_to_start_year(season_label: str):
+    """Return the start year of a season label like '2023-24', or -1 if unparseable."""
     try:
         return int(str(season_label).split('-')[0])
     except (ValueError, IndexError):
@@ -98,6 +101,10 @@ def build_player_feature_table(
 
 
 def attach_player_quality_column(player_df: pd.DataFrame, quality_map: dict, col_name='QUALITY_PRIOR_Z'):
+    """Attach a z-scored player quality prior column to the archetype DataFrame.
+
+    Looks up each (player_id, season) key in quality_map and fills missing keys with 0.0.
+    """
     df = player_df.copy()
     df[col_name] = [
         float(quality_map.get((int(pid), season), 0.0))
@@ -192,6 +199,7 @@ def predict_with_uncertainty(
 
 
 def build_player_vector_dict(player_df: pd.DataFrame, player_feature_cols):
+    """Build a {(player_id, season_label): feature_vector} lookup dict from the player table."""
     vectors = {}
     for _, row in player_df.iterrows():
         key = (int(row['PLAYER_ID']), row['SEASON_LABEL'])
